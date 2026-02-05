@@ -152,23 +152,30 @@ if run_btn:
     # GRAPH VISUALIZATION
     # =========================
     st.markdown("---")
-    st.subheader("📈 Causal Graph (Best Chain)")
+st.subheader("📈 Causal Graph (Best Chain)")
 
-    chain_graph = nx.DiGraph()
-    for i in range(len(best_chain) - 1):
-        chain_graph.add_edge(best_chain[i], best_chain[i + 1])
+import matplotlib.pyplot as plt
 
-    plt.figure(figsize=(8, 4))
-    pos = nx.spring_layout(chain_graph, seed=42)
-    nx.draw(
-        chain_graph,
-        pos,
-        with_labels=True,
-        node_color="#4CAF50",
-        node_size=2000,
-        font_size=9
-    )
-    st.pyplot(plt)
+chain_graph = nx.DiGraph()
+for i in range(len(best_chain) - 1):
+    chain_graph.add_edge(best_chain[i], best_chain[i + 1])
+
+fig, ax = plt.subplots(figsize=(8, 4))
+pos = nx.spring_layout(chain_graph, seed=42)
+
+nx.draw(
+    chain_graph,
+    pos,
+    with_labels=True,
+    node_color="#4CAF50",
+    node_size=2500,
+    font_size=9,
+    ax=ax
+)
+
+st.pyplot(fig)
+plt.close(fig)
+
 
     # =========================
     # METRIC
