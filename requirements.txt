@@ -1,6 +1,5 @@
-streamlit>=1.30.0
-pandas
-numpy
-networkx
-matplotlib
-altair>=5.0.0
+streamlit==1.54.0
+pandas==2.3.3
+networkx==3.2.1
+matplotlib==3.8.4
+numpy==1.26.4
