@@ -1,7 +1,6 @@
-
+streamlit>=1.30.0
 pandas
-altair==4.2.2
 numpy
 networkx
 matplotlib
-streamlit
+altair>=5.0.0
