@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import timedelta
+import json
 
 st.set_page_config(
     page_title="Explainable Cloud Cost Anomaly Detection",
@@ -9,176 +8,80 @@ st.set_page_config(
 )
 
 st.title("☁️ Explainable Cloud Cost Anomaly Detection")
-st.caption("Causal root-cause analysis for cloud anomalies (graph-free cloud-safe version)")
+st.caption("Causal root cause analysis for cloud anomalies")
 
-# -----------------------------
-# SIDEBAR INPUT
-# -----------------------------
-st.sidebar.header("📂 Input Configuration")
+# Sidebar
+st.sidebar.header("Input Configuration")
 
 uploaded_file = st.sidebar.file_uploader(
     "Upload Event Log CSV",
     type=["csv"]
 )
 
-use_sample = st.sidebar.checkbox("Use sample dataset", value=True)
-
-max_depth = st.sidebar.slider(
+chain_depth = st.sidebar.slider(
     "Causal Chain Depth",
-    min_value=2,
-    max_value=6,
+    min_value=1,
+    max_value=5,
     value=3
 )
 
-run_btn = st.sidebar.button("🚀 Run Analysis")
+run_clicked = st.sidebar.button("🚀 Run Analysis")
 
-# -----------------------------
-# LOAD DATA
-# -----------------------------
-@st.cache_data
-def load_sample():
-    return pd.read_csv("event_log.csv")
+st.divider()
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-elif use_sample:
-    df = load_sample()
-else:
-    df = None
-
-if df is None:
-    st.info("Upload a CSV or select sample dataset to begin.")
+# Guard: no file uploaded
+if uploaded_file is None:
+    st.info("Please upload an event_log CSV file to begin.")
     st.stop()
 
-df["timestamp"] = pd.to_datetime(df["timestamp"])
-df = df.sort_values("timestamp").reset_index(drop=True)
+# Load CSV safely
+try:
+    df = pd.read_csv(uploaded_file)
+except Exception as e:
+    st.error(f"Failed to read CSV: {e}")
+    st.stop()
 
-# -----------------------------
-# DISPLAY EVENT LOG
-# -----------------------------
-st.subheader("📋 Event Log")
-st.dataframe(df.head(50), width="stretch")
+st.subheader("📋 Event Log Preview")
+st.dataframe(df.head(20), width="stretch")
 
-# -----------------------------
-# BASIC STATS (NEW FEATURE)
-# -----------------------------
-st.subheader("📊 Event Statistics")
+# 🚨 IMPORTANT: analysis ONLY runs after button click
+if not run_clicked:
+    st.warning("Click **Run Analysis** to perform causal reasoning.")
+    st.stop()
 
-col1, col2, col3 = st.columns(3)
+# ---------------- ANALYSIS LOGIC ----------------
 
-with col1:
-    st.metric("Total Events", len(df))
+st.subheader("🧠 Root Cause Analysis")
 
-with col2:
-    st.metric("Unique Resources", df["resource_id"].nunique())
+events = df["event_type"].tolist()
 
-with col3:
-    st.metric("Anomalies Detected", (df["event_type"] == "COST_ANOMALY").sum())
+best_chain = []
+for event in reversed(events):
+    best_chain.append(event)
+    if len(best_chain) == chain_depth:
+        break
 
-# -----------------------------
-# CAUSAL RULES
-# -----------------------------
-CAUSAL_RULES = {
-    ("CPU_SPIKE", "RESOURCE_SCALE"),
-    ("MEMORY_SURGE", "RESOURCE_SCALE"),
-    ("RESOURCE_SCALE", "COST_ANOMALY"),
-    ("CPU_SPIKE", "COST_ANOMALY"),
-    ("MEMORY_SURGE", "COST_ANOMALY"),
+best_chain = list(reversed(best_chain))
+
+explanation = " → ".join(best_chain)
+
+st.success("Causal chain identified")
+
+st.markdown("**Explanation:**")
+st.code(explanation)
+
+st.subheader("📊 Confidence Metrics")
+
+confidence_score = round(len(best_chain) / len(events), 2)
+
+st.metric("Causal Coverage Score", confidence_score)
+
+st.subheader("🧾 Explanation Summary")
+
+summary = {
+    "chain_depth": chain_depth,
+    "identified_chain": best_chain,
+    "confidence": confidence_score
 }
 
-# -----------------------------
-# FIND BEST CAUSAL CHAIN
-# -----------------------------
-def find_best_chain(df, max_depth):
-    anomalies = df[df["event_type"] == "COST_ANOMALY"]
-
-    if anomalies.empty:
-        return None
-
-    anomaly = anomalies.iloc[-1]
-    chain = [anomaly]
-
-    current_time = anomaly["timestamp"]
-
-    for _ in range(max_depth - 1):
-        candidates = df[
-            (df["timestamp"] < current_time) &
-            (df["timestamp"] >= current_time - timedelta(hours=24))
-        ]
-
-        found = False
-        for _, row in candidates[::-1].iterrows():
-            if (row["event_type"], chain[0]["event_type"]) in CAUSAL_RULES:
-                chain.insert(0, row)
-                current_time = row["timestamp"]
-                found = True
-                break
-
-        if not found:
-            break
-
-    return chain if len(chain) > 1 else None
-
-# -----------------------------
-# RUN ANALYSIS
-# -----------------------------
-if run_btn:
-    st.subheader("🧠 Root Cause Analysis")
-
-    chain = find_best_chain(df, max_depth)
-
-    if chain is None:
-        st.error("No causal chain found.")
-        st.stop()
-
-    st.success("Causal chain identified")
-
-    # -------------------------
-    # EXPLANATION TEXT
-    # -------------------------
-    explanation_steps = []
-    for step in chain:
-        explanation_steps.append(
-            f"{step['event_type']} on {step['resource_id']} by {step['actor']}"
-        )
-
-    explanation = " → ".join(explanation_steps)
-
-    st.markdown("### 🧾 Explanation")
-    st.code(explanation)
-
-    # -------------------------
-    # STEP-BY-STEP TIMELINE (NEW FEATURE)
-    # -------------------------
-    st.markdown("### ⏱️ Causal Timeline")
-
-    for i, step in enumerate(chain, start=1):
-        with st.expander(f"Step {i}: {step['event_type']}"):
-            st.write(f"**Timestamp:** {step['timestamp']}")
-            st.write(f"**Resource:** {step['resource_id']}")
-            st.write(f"**Actor:** {step['actor']}")
-            st.write(f"**Metadata:** {step['metadata']}")
-
-    # -------------------------
-    # CONFIDENCE SCORE (NEW FEATURE)
-    # -------------------------
-    confidence = round(len(chain) / max_depth, 2)
-
-    st.markdown("### 📌 Explanation Confidence")
-    st.progress(confidence)
-    st.write(f"Confidence Score: **{confidence}**")
-
-    # -------------------------
-    # DOWNLOAD REPORT
-    # -------------------------
-    report_text = (
-        "Explainable Cloud Cost Anomaly Report\n\n"
-        f"Causal Chain:\n{explanation}\n\n"
-        f"Confidence Score: {confidence}\n"
-    )
-
-    st.download_button(
-        "⬇️ Download Explanation Report",
-        report_text,
-        file_name="explanation.txt"
-    )
+st.json(summary)
