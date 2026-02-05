@@ -1,5 +1,5 @@
 
-pandas
+pandasaltair==4.2.2
 numpy
 networkx
 matplotlib
