@@ -1,9 +1,6 @@
-# -----------------------------
-# STREAMLIT + PYTHON 3.13 FIX
-# -----------------------------
-# Streamlit still imports imghdr internally.
-# Python 3.13 removed it.
-# This shim prevents Streamlit from crashing.
+import streamlit as st
+import pandas as pd
+from datetime import timedelta# This shim prevents Streamlit from crashing.
 
 import sys
 import types
