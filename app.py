@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import networkx as nx
-import matplotlib.pyplot as plt
+import numpy as np
 from datetime import timedelta
 
 st.set_page_config(
@@ -10,17 +9,19 @@ st.set_page_config(
 )
 
 st.title("☁️ Explainable Cloud Cost Anomaly Detection")
-st.caption("Causal root-cause analysis for cloud anomalies")
+st.caption("Causal root-cause analysis for cloud anomalies (graph-free cloud-safe version)")
 
-# =========================
-# SIDEBAR
-# =========================
+# -----------------------------
+# SIDEBAR INPUT
+# -----------------------------
 st.sidebar.header("📂 Input Configuration")
 
 uploaded_file = st.sidebar.file_uploader(
     "Upload Event Log CSV",
     type=["csv"]
 )
+
+use_sample = st.sidebar.checkbox("Use sample dataset", value=True)
 
 max_depth = st.sidebar.slider(
     "Causal Chain Depth",
@@ -31,154 +32,153 @@ max_depth = st.sidebar.slider(
 
 run_btn = st.sidebar.button("🚀 Run Analysis")
 
-# =========================
+# -----------------------------
 # LOAD DATA
-# =========================
+# -----------------------------
+@st.cache_data
+def load_sample():
+    return pd.read_csv("event_log.csv")
+
 if uploaded_file:
-    event_log = pd.read_csv(uploaded_file)
+    df = pd.read_csv(uploaded_file)
+elif use_sample:
+    df = load_sample()
 else:
-    st.info("Upload a CSV file to begin analysis.")
+    df = None
+
+if df is None:
+    st.info("Upload a CSV or select sample dataset to begin.")
     st.stop()
 
-required_cols = {
-    "timestamp", "event_type", "resource_id",
-    "project_id", "actor", "metadata"
-}
+df["timestamp"] = pd.to_datetime(df["timestamp"])
+df = df.sort_values("timestamp").reset_index(drop=True)
 
-if not required_cols.issubset(event_log.columns):
-    st.error("CSV format invalid. Required columns missing.")
-    st.stop()
+# -----------------------------
+# DISPLAY EVENT LOG
+# -----------------------------
+st.subheader("📋 Event Log")
+st.dataframe(df.head(50), width="stretch")
 
-event_log["timestamp"] = pd.to_datetime(event_log["timestamp"])
+# -----------------------------
+# BASIC STATS (NEW FEATURE)
+# -----------------------------
+st.subheader("📊 Event Statistics")
 
-st.subheader("📄 Event Log")
-st.dataframe(event_log.head(20), use_container_width=True)
+col1, col2, col3 = st.columns(3)
 
-# =========================
+with col1:
+    st.metric("Total Events", len(df))
+
+with col2:
+    st.metric("Unique Resources", df["resource_id"].nunique())
+
+with col3:
+    st.metric("Anomalies Detected", (df["event_type"] == "COST_ANOMALY").sum())
+
+# -----------------------------
 # CAUSAL RULES
-# =========================
+# -----------------------------
 CAUSAL_RULES = {
     ("CPU_SPIKE", "RESOURCE_SCALE"),
     ("MEMORY_SURGE", "RESOURCE_SCALE"),
     ("RESOURCE_SCALE", "COST_ANOMALY"),
-    ("TRAFFIC_SPIKE", "COST_ANOMALY"),
     ("CPU_SPIKE", "COST_ANOMALY"),
+    ("MEMORY_SURGE", "COST_ANOMALY"),
 }
 
-# =========================
-# ANALYSIS
-# =========================
-if run_btn:
+# -----------------------------
+# FIND BEST CAUSAL CHAIN
+# -----------------------------
+def find_best_chain(df, max_depth):
+    anomalies = df[df["event_type"] == "COST_ANOMALY"]
 
-    st.markdown("---")
-    st.subheader("🧠 Root Cause Analysis")
+    if anomalies.empty:
+        return None
 
-    # Build graph
-    G = nx.DiGraph()
+    anomaly = anomalies.iloc[-1]
+    chain = [anomaly]
 
-    for idx, row in event_log.iterrows():
-        G.add_node(idx, **row.to_dict())
+    current_time = anomaly["timestamp"]
 
-    sorted_idx = event_log.sort_values("timestamp").index.tolist()
+    for _ in range(max_depth - 1):
+        candidates = df[
+            (df["timestamp"] < current_time) &
+            (df["timestamp"] >= current_time - timedelta(hours=24))
+        ]
 
-    for i in range(len(sorted_idx)):
-        for j in range(i + 1, len(sorted_idx)):
-            e1 = event_log.loc[sorted_idx[i]]
-            e2 = event_log.loc[sorted_idx[j]]
-
-            if (e2["timestamp"] - e1["timestamp"]) > timedelta(hours=24):
+        found = False
+        for _, row in candidates[::-1].iterrows():
+            if (row["event_type"], chain[0]["event_type"]) in CAUSAL_RULES:
+                chain.insert(0, row)
+                current_time = row["timestamp"]
+                found = True
                 break
 
-            if (e1["event_type"], e2["event_type"]) in CAUSAL_RULES:
-                G.add_edge(sorted_idx[i], sorted_idx[j])
+        if not found:
+            break
 
-    # =========================
-    # FIND BEST CHAIN
-    # =========================
-    def score_chain(chain):
-        return len(chain)
+    return chain if len(chain) > 1 else None
 
-    def find_best_chain(G, max_depth):
-        best_chain = None
-        best_score = -1
+# -----------------------------
+# RUN ANALYSIS
+# -----------------------------
+if run_btn:
+    st.subheader("🧠 Root Cause Analysis")
 
-        for node, data in G.nodes(data=True):
-            if data.get("event_type") != "COST_ANOMALY":
-                continue
+    chain = find_best_chain(df, max_depth)
 
-            stack = [(node, [node])]
-
-            while stack:
-                current, path = stack.pop()
-
-                if len(path) > max_depth:
-                    continue
-
-                if len(path) >= 2:
-                    score = score_chain(path)
-                    if score > best_score:
-                        best_score = score
-                        best_chain = path
-
-                for p in G.predecessors(current):
-                    if p not in path:
-                        stack.append((p, [p] + path))
-
-        return best_chain
-
-    best_chain = find_best_chain(G, max_depth)
-
-    # =========================
-    # EXPLANATION
-    # =========================
-    def explain_chain(chain):
-        parts = []
-        for node in chain:
-            e = G.nodes[node]
-            parts.append(
-                f"{e['event_type']} on {e['resource_id']} by {e['actor']}"
-            )
-        return " → ".join(parts)
-
-    if best_chain:
-        explanation = explain_chain(best_chain)
-        st.success("✅ Causal chain identified")
-        st.markdown(f"**Explanation:**  \n{explanation}")
-    else:
-        st.warning("No causal chain found.")
+    if chain is None:
+        st.error("No causal chain found.")
         st.stop()
 
-    # =========================
-    # GRAPH VISUALIZATION
-    # =========================
-    st.markdown("---")
-st.subheader("📈 Causal Graph (Best Chain)")
+    st.success("Causal chain identified")
 
-import matplotlib.pyplot as plt
+    # -------------------------
+    # EXPLANATION TEXT
+    # -------------------------
+    explanation_steps = []
+    for step in chain:
+        explanation_steps.append(
+            f"{step['event_type']} on {step['resource_id']} by {step['actor']}"
+        )
 
-chain_graph = nx.DiGraph()
-for i in range(len(best_chain) - 1):
-    chain_graph.add_edge(best_chain[i], best_chain[i + 1])
+    explanation = " → ".join(explanation_steps)
 
-fig, ax = plt.subplots(figsize=(8, 4))
-pos = nx.spring_layout(chain_graph, seed=42)
+    st.markdown("### 🧾 Explanation")
+    st.code(explanation)
 
-nx.draw(
-    chain_graph,
-    pos,
-    with_labels=True,
-    node_color="#4CAF50",
-    node_size=2500,
-    font_size=9,
-    ax=ax
-)
+    # -------------------------
+    # STEP-BY-STEP TIMELINE (NEW FEATURE)
+    # -------------------------
+    st.markdown("### ⏱️ Causal Timeline")
 
-st.pyplot(fig)
-plt.close(fig)
+    for i, step in enumerate(chain, start=1):
+        with st.expander(f"Step {i}: {step['event_type']}"):
+            st.write(f"**Timestamp:** {step['timestamp']}")
+            st.write(f"**Resource:** {step['resource_id']}")
+            st.write(f"**Actor:** {step['actor']}")
+            st.write(f"**Metadata:** {step['metadata']}")
 
+    # -------------------------
+    # CONFIDENCE SCORE (NEW FEATURE)
+    # -------------------------
+    confidence = round(len(chain) / max_depth, 2)
 
-    # =========================
-    # METRIC
-    # =========================
-    coverage = len(best_chain) / len(G.nodes)
-    st.metric("Causal Coverage Score", f"{coverage:.2f}")
+    st.markdown("### 📌 Explanation Confidence")
+    st.progress(confidence)
+    st.write(f"Confidence Score: **{confidence}**")
+
+    # -------------------------
+    # DOWNLOAD REPORT
+    # -------------------------
+    report_text = (
+        "Explainable Cloud Cost Anomaly Report\n\n"
+        f"Causal Chain:\n{explanation}\n\n"
+        f"Confidence Score: {confidence}\n"
+    )
+
+    st.download_button(
+        "⬇️ Download Explanation Report",
+        report_text,
+        file_name="explanation.txt"
+    )
