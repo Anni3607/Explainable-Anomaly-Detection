@@ -1,6 +1,7 @@
-import streamlit as st
-import pandas as pd
-from datetime import timedelta# This shim prevents Streamlit from crashing.
+# -----------------------------
+# TEMPORARY PYTHON 3.13 SAFETY SHIM
+# -----------------------------
+# This MUST come before importing streamlit
 
 import sys
 import types
@@ -32,7 +33,7 @@ st.set_page_config(
 )
 
 st.title("☁️ Explainable Cloud Cost Anomaly Detection")
-st.caption("Causal root-cause analysis for cloud anomalies (graph-free, cloud-safe)")
+st.caption("Causal root-cause analysis for cloud anomalies")
 
 
 # -----------------------------
@@ -69,9 +70,6 @@ if uploaded_file:
 elif use_sample:
     df = load_sample()
 else:
-    df = None
-
-if df is None:
     st.info("Upload a CSV or select sample dataset to begin.")
     st.stop()
 
@@ -137,15 +135,12 @@ def find_best_chain(df, max_depth):
             (df["timestamp"] >= current_time - timedelta(hours=24))
         ]
 
-        found = False
         for _, row in candidates.iloc[::-1].iterrows():
             if (row["event_type"], chain[0]["event_type"]) in CAUSAL_RULES:
                 chain.insert(0, row)
                 current_time = row["timestamp"]
-                found = True
                 break
-
-        if not found:
+        else:
             break
 
     return chain if len(chain) > 1 else None
@@ -163,53 +158,16 @@ if run_btn:
         st.error("No causal chain found.")
         st.stop()
 
-    st.success("Causal chain identified")
-
-    # -------------------------
-    # EXPLANATION TEXT
-    # -------------------------
-    explanation_steps = [
-        f"{step['event_type']} on {step['resource_id']} by {step['actor']}"
-        for step in chain
-    ]
-
-    explanation = " → ".join(explanation_steps)
+    explanation = " → ".join(
+        f"{s['event_type']} on {s['resource_id']} by {s['actor']}"
+        for s in chain
+    )
 
     st.markdown("### 🧾 Explanation")
     st.code(explanation)
 
-    # -------------------------
-    # CAUSAL TIMELINE
-    # -------------------------
-    st.markdown("### ⏱️ Causal Timeline")
-
-    for i, step in enumerate(chain, start=1):
-        with st.expander(f"Step {i}: {step['event_type']}"):
-            st.write(f"**Timestamp:** {step['timestamp']}")
-            st.write(f"**Resource:** {step['resource_id']}")
-            st.write(f"**Actor:** {step['actor']}")
-            st.write(f"**Metadata:** {step['metadata']}")
-
-    # -------------------------
-    # CONFIDENCE SCORE
-    # -------------------------
     confidence = round(len(chain) / max_depth, 2)
 
     st.markdown("### 📌 Explanation Confidence")
     st.progress(confidence)
     st.write(f"Confidence Score: **{confidence}**")
-
-    # -------------------------
-    # DOWNLOAD REPORT
-    # -------------------------
-    report_text = (
-        "Explainable Cloud Cost Anomaly Report\n\n"
-        f"Causal Chain:\n{explanation}\n\n"
-        f"Confidence Score: {confidence}\n"
-    )
-
-    st.download_button(
-        "⬇️ Download Explanation Report",
-        report_text,
-        file_name="explanation.txt"
-    )
