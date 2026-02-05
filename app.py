@@ -1,15 +1,42 @@
+# -----------------------------
+# STREAMLIT + PYTHON 3.13 FIX
+# -----------------------------
+# Streamlit still imports imghdr internally.
+# Python 3.13 removed it.
+# This shim prevents Streamlit from crashing.
+
+import sys
+import types
+
+if "imghdr" not in sys.modules:
+    imghdr_stub = types.ModuleType("imghdr")
+
+    def what(file, h=None):
+        return None
+
+    imghdr_stub.what = what
+    sys.modules["imghdr"] = imghdr_stub
+
+
+# -----------------------------
+# IMPORTS
+# -----------------------------
 import streamlit as st
 import pandas as pd
-import numpy as np
 from datetime import timedelta
 
+
+# -----------------------------
+# PAGE CONFIG
+# -----------------------------
 st.set_page_config(
     page_title="Explainable Cloud Cost Anomaly Detection",
     layout="wide"
 )
 
 st.title("☁️ Explainable Cloud Cost Anomaly Detection")
-st.caption("Causal root-cause analysis for cloud anomalies (graph-free cloud-safe version)")
+st.caption("Causal root-cause analysis for cloud anomalies (graph-free, cloud-safe)")
+
 
 # -----------------------------
 # SIDEBAR INPUT
@@ -32,6 +59,7 @@ max_depth = st.sidebar.slider(
 
 run_btn = st.sidebar.button("🚀 Run Analysis")
 
+
 # -----------------------------
 # LOAD DATA
 # -----------------------------
@@ -53,14 +81,16 @@ if df is None:
 df["timestamp"] = pd.to_datetime(df["timestamp"])
 df = df.sort_values("timestamp").reset_index(drop=True)
 
+
 # -----------------------------
 # DISPLAY EVENT LOG
 # -----------------------------
 st.subheader("📋 Event Log")
 st.dataframe(df.head(50), width="stretch")
 
+
 # -----------------------------
-# BASIC STATS (NEW FEATURE)
+# BASIC STATS
 # -----------------------------
 st.subheader("📊 Event Statistics")
 
@@ -73,7 +103,11 @@ with col2:
     st.metric("Unique Resources", df["resource_id"].nunique())
 
 with col3:
-    st.metric("Anomalies Detected", (df["event_type"] == "COST_ANOMALY").sum())
+    st.metric(
+        "Anomalies Detected",
+        int((df["event_type"] == "COST_ANOMALY").sum())
+    )
+
 
 # -----------------------------
 # CAUSAL RULES
@@ -86,6 +120,7 @@ CAUSAL_RULES = {
     ("MEMORY_SURGE", "COST_ANOMALY"),
 }
 
+
 # -----------------------------
 # FIND BEST CAUSAL CHAIN
 # -----------------------------
@@ -97,7 +132,6 @@ def find_best_chain(df, max_depth):
 
     anomaly = anomalies.iloc[-1]
     chain = [anomaly]
-
     current_time = anomaly["timestamp"]
 
     for _ in range(max_depth - 1):
@@ -107,7 +141,7 @@ def find_best_chain(df, max_depth):
         ]
 
         found = False
-        for _, row in candidates[::-1].iterrows():
+        for _, row in candidates.iloc[::-1].iterrows():
             if (row["event_type"], chain[0]["event_type"]) in CAUSAL_RULES:
                 chain.insert(0, row)
                 current_time = row["timestamp"]
@@ -118,6 +152,7 @@ def find_best_chain(df, max_depth):
             break
 
     return chain if len(chain) > 1 else None
+
 
 # -----------------------------
 # RUN ANALYSIS
@@ -136,11 +171,10 @@ if run_btn:
     # -------------------------
     # EXPLANATION TEXT
     # -------------------------
-    explanation_steps = []
-    for step in chain:
-        explanation_steps.append(
-            f"{step['event_type']} on {step['resource_id']} by {step['actor']}"
-        )
+    explanation_steps = [
+        f"{step['event_type']} on {step['resource_id']} by {step['actor']}"
+        for step in chain
+    ]
 
     explanation = " → ".join(explanation_steps)
 
@@ -148,7 +182,7 @@ if run_btn:
     st.code(explanation)
 
     # -------------------------
-    # STEP-BY-STEP TIMELINE (NEW FEATURE)
+    # CAUSAL TIMELINE
     # -------------------------
     st.markdown("### ⏱️ Causal Timeline")
 
@@ -160,7 +194,7 @@ if run_btn:
             st.write(f"**Metadata:** {step['metadata']}")
 
     # -------------------------
-    # CONFIDENCE SCORE (NEW FEATURE)
+    # CONFIDENCE SCORE
     # -------------------------
     confidence = round(len(chain) / max_depth, 2)
 
