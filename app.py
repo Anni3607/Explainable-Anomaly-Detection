@@ -112,9 +112,6 @@ if run_btn:
     df["severity"] = df["z_score"].apply(severity)
     df["Recommendation"] = df["event_type"].apply(recommend)
 
-    # -------------------------------------------------
-    # EXPLANATION ENGINE
-    # -------------------------------------------------
     explanation_map = {
         "CPU_SPIKE": "High CPU usage increased compute cost.",
         "MEMORY_SURGE": "Memory demand increased instance usage.",
@@ -136,7 +133,7 @@ if run_btn:
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "Data",
         "Anomalies",
-        "Cost Trend",
+        "Cost Distribution",
         "Forecast",
         "Root Causes",
         "Explainability",
@@ -188,32 +185,36 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # COST TREND TAB
+    # COST DISTRIBUTION TAB
     # -------------------------------------------------
     with tab3:
 
-    st.subheader("Cost Distribution and Anomaly Threshold")
+        st.subheader("Cost Distribution and Anomaly Threshold")
 
-    fig, ax = plt.subplots(figsize=(10,5))
+        fig, ax = plt.subplots(figsize=(10,5))
 
-    ax.hist(df["cost"], bins=40, alpha=0.7, label="Normal Cost")
+        ax.hist(
+            df["cost"],
+            bins=40,
+            alpha=0.7,
+            label="Normal Cost"
+        )
 
-    threshold = mean_cost + z_thresh * std_cost
+        threshold = mean_cost + z_thresh * std_cost
 
-    ax.axvline(
-        threshold,
-        color="red",
-        linestyle="--",
-        linewidth=2,
-        label="Anomaly Threshold"
-    )
+        ax.axvline(
+            threshold,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label="Anomaly Threshold"
+        )
 
-    ax.set_xlabel("Cost")
-    ax.set_ylabel("Frequency")
+        ax.set_xlabel("Cost")
+        ax.set_ylabel("Frequency")
+        ax.legend()
 
-    ax.legend()
-
-    st.pyplot(fig)
+        st.pyplot(fig)
 
 
     # -------------------------------------------------
