@@ -24,6 +24,8 @@ import os
 from modules.severity_scoring import severity
 from modules.recommendation_engine import recommend
 from modules.forecasting import forecast_cost
+from modules.root_cause import cost_drivers
+from modules.anomaly_model import detect_anomalies
 
 
 # -------------------------------------------------
@@ -102,6 +104,9 @@ df.loc[df["event_type"] == "COST_ANOMALY", "cost"] += 2.0
 # RUN ANALYSIS
 # -------------------------------------------------
 if run_btn:
+
+    # ML anomaly detection
+    df = detect_anomalies(df)
 
     mean_cost = df["cost"].mean()
     std_cost = df["cost"].std()
@@ -237,17 +242,11 @@ if run_btn:
     # -------------------------------------------------
     with tab5:
 
-        st.subheader("Top Anomaly Sources")
+        st.subheader("Top Cost Drivers")
 
-        if len(anomaly_df) > 0:
+        drivers = cost_drivers(df)
 
-            cause_counts = anomaly_df["event_type"].value_counts()
-
-            st.bar_chart(cause_counts)
-
-        else:
-
-            st.info("No anomaly causes detected")
+        st.bar_chart(drivers)
 
 
     # -------------------------------------------------
@@ -264,7 +263,12 @@ if run_btn:
 
             st.write(f"Most anomalies were triggered by **{top_event}** events.")
             st.write(f"Average anomalous cost observed: **{avg_cost:.2f}**")
-            st.write("Detection uses statistical Z-score deviation from normal cost behaviour.")
+
+            impact = anomaly_df.groupby("event_type")["cost"].mean()
+
+            st.write("### Cost Impact by Event Type")
+
+            st.bar_chart(impact)
 
         else:
 
