@@ -192,52 +192,28 @@ if run_btn:
     # -------------------------------------------------
     with tab3:
 
-        st.subheader("Daily Cloud Cost Trend")
+    st.subheader("Cost Distribution and Anomaly Threshold")
 
-        # daily average cost
-        daily_cost = df.set_index("timestamp")["cost"].resample("D").mean()
+    fig, ax = plt.subplots(figsize=(10,5))
 
-        # daily anomaly
-        if len(anomaly_df) > 0:
-            anomaly_daily = anomaly_df.set_index("timestamp")["cost"].resample("D").mean()
-        else:
-            anomaly_daily = pd.Series(dtype=float)
+    ax.hist(df["cost"], bins=40, alpha=0.7, label="Normal Cost")
 
-        fig, ax = plt.subplots(figsize=(12,5))
+    threshold = mean_cost + z_thresh * std_cost
 
-        ax.plot(
-            daily_cost.index,
-            daily_cost.values,
-            linewidth=2,
-            label="Average Daily Cost"
-        )
+    ax.axvline(
+        threshold,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label="Anomaly Threshold"
+    )
 
-        if len(anomaly_daily) > 0:
+    ax.set_xlabel("Cost")
+    ax.set_ylabel("Frequency")
 
-            ax.scatter(
-                anomaly_daily.index,
-                anomaly_daily.values,
-                color="red",
-                s=80,
-                label="Anomaly"
-            )
+    ax.legend()
 
-        threshold = mean_cost + z_thresh * std_cost
-
-        ax.axhline(
-            threshold,
-            linestyle="--",
-            color="orange",
-            label="Anomaly Threshold"
-        )
-
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Cost")
-
-        ax.legend()
-        ax.grid(True)
-
-        st.pyplot(fig)
+    st.pyplot(fig)
 
 
     # -------------------------------------------------
