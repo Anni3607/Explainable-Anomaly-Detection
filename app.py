@@ -41,11 +41,8 @@ st.caption("Detect unusual cloud cost behaviour with simple explanations")
 st.sidebar.header("Input Configuration")
 
 uploaded_file = st.sidebar.file_uploader("Upload Event Log CSV", type=["csv"])
-
 use_sample = st.sidebar.checkbox("Use sample dataset", value=True)
-
-z_thresh = st.sidebar.slider("Z-score Threshold",2.0,5.0,3.0)
-
+z_thresh = st.sidebar.slider("Z-score Threshold", 2.0, 5.0, 3.0)
 run_btn = st.sidebar.button("Run Analysis")
 
 
@@ -54,18 +51,16 @@ run_btn = st.sidebar.button("Run Analysis")
 # -------------------------------------------------
 @st.cache_data
 def load_sample():
-    path = os.path.join("data","event_log.csv")
+    path = os.path.join("data", "event_log.csv")
     return pd.read_csv(path)
+
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-
 elif use_sample:
     df = load_sample()
-
 else:
     st.stop()
-
 
 df["timestamp"] = pd.to_datetime(df["timestamp"])
 df = df.sort_values("timestamp").reset_index(drop=True)
@@ -76,11 +71,11 @@ df = df.sort_values("timestamp").reset_index(drop=True)
 # -------------------------------------------------
 np.random.seed(42)
 
-df["cost"] = 2.5 + np.random.normal(0,0.15,len(df))
+df["cost"] = 2.5 + np.random.normal(0, 0.15, len(df))
 
-df.loc[df["event_type"].isin(["CPU_SPIKE","MEMORY_SURGE"]),"cost"] += 0.8
-df.loc[df["event_type"]=="RESOURCE_SCALE","cost"] += 1.2
-df.loc[df["event_type"]=="COST_ANOMALY","cost"] += 2.0
+df.loc[df["event_type"].isin(["CPU_SPIKE", "MEMORY_SURGE"]), "cost"] += 0.8
+df.loc[df["event_type"] == "RESOURCE_SCALE", "cost"] += 1.2
+df.loc[df["event_type"] == "COST_ANOMALY", "cost"] += 2.0
 
 
 # -------------------------------------------------
@@ -97,8 +92,6 @@ if run_btn:
     df["severity"] = df["z_score"].apply(severity)
     df["Recommendation"] = df["event_type"].apply(recommend)
 
-    anomaly_df = df[df["is_anomaly"]]
-
 
     # -------------------------------------------------
     # EXPLANATION ENGINE
@@ -106,22 +99,26 @@ if run_btn:
     def explain(event):
 
         explanations = {
-            "CPU_SPIKE":"High CPU usage increased compute cost.",
-            "MEMORY_SURGE":"Memory demand increased instance usage.",
-            "TRAFFIC_SPIKE":"Traffic spike triggered backend scaling.",
-            "RESOURCE_SCALE":"Autoscaling increased infrastructure cost.",
-            "COST_ANOMALY":"Billing deviated significantly from baseline."
+            "CPU_SPIKE": "High CPU usage increased compute cost.",
+            "MEMORY_SURGE": "Memory demand increased instance usage.",
+            "TRAFFIC_SPIKE": "Traffic spike triggered backend scaling.",
+            "RESOURCE_SCALE": "Autoscaling increased infrastructure cost.",
+            "COST_ANOMALY": "Billing deviated significantly from baseline."
         }
 
-        return explanations.get(event,"Routine cloud operation.")
+        return explanations.get(event, "Routine cloud operation.")
 
     df["Explanation"] = df["event_type"].apply(explain)
+
+
+    # CREATE anomaly_df AFTER Explanation column exists
+    anomaly_df = df[df["is_anomaly"]]
 
 
     # -------------------------------------------------
     # TABS
     # -------------------------------------------------
-    tab1,tab2,tab3,tab4,tab5,tab6,tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "Data",
         "Anomalies",
         "Cost Trend",
@@ -133,24 +130,26 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # DATA
+    # DATA TAB
     # -------------------------------------------------
     with tab1:
 
         st.subheader("Event Log Preview")
 
-        st.dataframe(df.head(50),use_container_width=True)
+        st.dataframe(df.head(50), width="stretch")
 
 
     # -------------------------------------------------
-    # ANOMALIES
+    # ANOMALIES TAB
     # -------------------------------------------------
     with tab2:
 
         st.subheader("Detected Anomalies")
 
-        if len(anomaly_df)==0:
+        if len(anomaly_df) == 0:
+
             st.success("No anomalies detected")
+
         else:
 
             st.dataframe(
@@ -166,12 +165,12 @@ if run_btn:
                         "Recommendation"
                     ]
                 ],
-                use_container_width=True
+                width="stretch"
             )
 
 
     # -------------------------------------------------
-    # COST TREND
+    # COST TREND TAB
     # -------------------------------------------------
     with tab3:
 
@@ -181,9 +180,14 @@ if run_btn:
 
         fig, ax = plt.subplots(figsize=(12,5))
 
-        ax.plot(daily_cost.index,daily_cost.values,label="Average Cost",linewidth=2)
+        ax.plot(
+            daily_cost.index,
+            daily_cost.values,
+            linewidth=2,
+            label="Average Cost"
+        )
 
-        if len(anomaly_df)>0:
+        if len(anomaly_df) > 0:
 
             ax.scatter(
                 anomaly_df["timestamp"],
@@ -193,7 +197,7 @@ if run_btn:
                 label="Anomaly"
             )
 
-        threshold = mean_cost + z_thresh*std_cost
+        threshold = mean_cost + z_thresh * std_cost
 
         ax.axhline(
             threshold,
@@ -212,7 +216,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # FORECAST
+    # FORECAST TAB
     # -------------------------------------------------
     with tab4:
 
@@ -220,74 +224,72 @@ if run_btn:
 
         future_cost = forecast_cost(df)
 
-        st.metric("Predicted Next Cost",round(future_cost,2))
+        st.metric("Predicted Next Cost", round(future_cost, 2))
 
 
     # -------------------------------------------------
-    # ROOT CAUSES
+    # ROOT CAUSE TAB
     # -------------------------------------------------
     with tab5:
 
         st.subheader("Top Anomaly Sources")
 
-        if len(anomaly_df)>0:
+        if len(anomaly_df) > 0:
 
-            cause_counts = anomaly_df["event_type"].value_counts()
-
-            st.bar_chart(cause_counts)
+            st.bar_chart(anomaly_df["event_type"].value_counts())
 
         else:
+
             st.info("No anomaly causes detected")
 
 
     # -------------------------------------------------
-    # EXPLAINABILITY
+    # EXPLAINABILITY TAB
     # -------------------------------------------------
     with tab6:
 
         st.subheader("Model Explanation")
 
-        if len(anomaly_df)>0:
+        if len(anomaly_df) > 0:
 
             top_event = anomaly_df["event_type"].value_counts().idxmax()
 
-            st.write(f"Most anomalies were caused by **{top_event}** events.")
-
             avg_cost = anomaly_df["cost"].mean()
 
-            st.write(f"Average anomalous cost observed: **{avg_cost:.2f}**")
+            st.write(f"Most anomalies were caused by **{top_event}** events.")
+            st.write(f"Average anomalous cost: **{avg_cost:.2f}**")
 
-            st.write("The system uses Z-score based statistical anomaly detection.")
+            st.write("Detection uses statistical Z-score deviation from normal cost behaviour.")
 
         else:
 
-            st.write("No abnormal behaviour detected in the dataset.")
+            st.write("No abnormal behaviour detected.")
 
 
     # -------------------------------------------------
-    # SUMMARY
+    # SUMMARY TAB
     # -------------------------------------------------
     with tab7:
 
         total_events = len(df)
         anomalies = len(anomaly_df)
-        anomaly_rate = anomalies/total_events
+        anomaly_rate = anomalies / total_events
 
-        col1,col2,col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
-        col1.metric("Total Events",total_events)
-        col2.metric("Detected Anomalies",anomalies)
-        col3.metric("Anomaly Rate",f"{anomaly_rate:.2%}")
+        col1.metric("Total Events", total_events)
+        col2.metric("Detected Anomalies", anomalies)
+        col3.metric("Anomaly Rate", f"{anomaly_rate:.2%}")
 
         st.markdown("### Key Insights")
 
-        if anomalies>0:
+        if anomalies > 0:
 
             most_common = anomaly_df["event_type"].value_counts().idxmax()
 
             st.write(f"- Most anomalies caused by **{most_common}**")
-            st.write("- Cost spikes are linked to scaling or workload surges")
-            st.write("- Monitoring these events can reduce unexpected cloud spend")
+            st.write("- Cost spikes linked to scaling or workload surges")
+            st.write("- Monitoring these events helps reduce unexpected cloud spend")
 
         else:
 
