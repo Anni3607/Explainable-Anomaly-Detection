@@ -29,7 +29,10 @@ from modules.forecasting import forecast_cost
 # -------------------------------------------------
 # PAGE CONFIG
 # -------------------------------------------------
-st.set_page_config(page_title="Explainable Cloud Cost Anomaly Detection", layout="wide")
+st.set_page_config(
+    page_title="Explainable Cloud Cost Anomaly Detection",
+    layout="wide"
+)
 
 st.title("☁️ Explainable Cloud Cost Anomaly Detection")
 st.caption("Detect unusual cloud cost behaviour with simple explanations")
@@ -40,9 +43,23 @@ st.caption("Detect unusual cloud cost behaviour with simple explanations")
 # -------------------------------------------------
 st.sidebar.header("Input Configuration")
 
-uploaded_file = st.sidebar.file_uploader("Upload Event Log CSV", type=["csv"])
-use_sample = st.sidebar.checkbox("Use sample dataset", value=True)
-z_thresh = st.sidebar.slider("Z-score Threshold", 2.0, 5.0, 3.0)
+uploaded_file = st.sidebar.file_uploader(
+    "Upload Event Log CSV",
+    type=["csv"]
+)
+
+use_sample = st.sidebar.checkbox(
+    "Use sample dataset",
+    value=True
+)
+
+z_thresh = st.sidebar.slider(
+    "Z-score Threshold",
+    2.0,
+    5.0,
+    3.0
+)
+
 run_btn = st.sidebar.button("Run Analysis")
 
 
@@ -106,7 +123,9 @@ if run_btn:
         "COST_ANOMALY": "Billing deviated significantly from baseline."
     }
 
-    df["Explanation"] = df["event_type"].map(explanation_map).fillna("Routine cloud operation.")
+    df["Explanation"] = df["event_type"].map(explanation_map).fillna(
+        "Routine cloud operation."
+    )
 
     anomaly_df = df[df["is_anomaly"]]
 
@@ -126,17 +145,20 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # DATA
+    # DATA TAB
     # -------------------------------------------------
     with tab1:
 
         st.subheader("Event Log Preview")
 
-        st.dataframe(df.head(50), width="stretch")
+        st.dataframe(
+            df.head(50),
+            width="stretch"
+        )
 
 
     # -------------------------------------------------
-    # ANOMALIES
+    # ANOMALIES TAB
     # -------------------------------------------------
     with tab2:
 
@@ -166,61 +188,60 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # COST TREND
+    # COST TREND TAB
     # -------------------------------------------------
-   with tab3:
+    with tab3:
 
-    st.subheader("Daily Cloud Cost Trend")
+        st.subheader("Daily Cloud Cost Trend")
 
-    # daily average cost
-    daily_cost = df.set_index("timestamp")["cost"].resample("D").mean()
+        # daily average cost
+        daily_cost = df.set_index("timestamp")["cost"].resample("D").mean()
 
-    # daily anomaly average
-    if len(anomaly_df) > 0:
-        anomaly_daily = anomaly_df.set_index("timestamp")["cost"].resample("D").mean()
-    else:
-        anomaly_daily = pd.Series(dtype=float)
+        # daily anomaly
+        if len(anomaly_df) > 0:
+            anomaly_daily = anomaly_df.set_index("timestamp")["cost"].resample("D").mean()
+        else:
+            anomaly_daily = pd.Series(dtype=float)
 
-    fig, ax = plt.subplots(figsize=(12,5))
+        fig, ax = plt.subplots(figsize=(12,5))
 
-    # cost trend
-    ax.plot(
-        daily_cost.index,
-        daily_cost.values,
-        linewidth=2,
-        label="Average Daily Cost"
-    )
-
-    # anomaly points (one per day)
-    if len(anomaly_daily) > 0:
-        ax.scatter(
-            anomaly_daily.index,
-            anomaly_daily.values,
-            color="red",
-            s=80,
-            label="Anomaly"
+        ax.plot(
+            daily_cost.index,
+            daily_cost.values,
+            linewidth=2,
+            label="Average Daily Cost"
         )
 
-    threshold = mean_cost + z_thresh * std_cost
+        if len(anomaly_daily) > 0:
 
-    ax.axhline(
-        threshold,
-        linestyle="--",
-        color="orange",
-        label="Anomaly Threshold"
-    )
+            ax.scatter(
+                anomaly_daily.index,
+                anomaly_daily.values,
+                color="red",
+                s=80,
+                label="Anomaly"
+            )
 
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Cost")
+        threshold = mean_cost + z_thresh * std_cost
 
-    ax.legend()
-    ax.grid(True)
+        ax.axhline(
+            threshold,
+            linestyle="--",
+            color="orange",
+            label="Anomaly Threshold"
+        )
 
-    st.pyplot(fig)
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Cost")
+
+        ax.legend()
+        ax.grid(True)
+
+        st.pyplot(fig)
 
 
     # -------------------------------------------------
-    # FORECAST
+    # FORECAST TAB
     # -------------------------------------------------
     with tab4:
 
@@ -228,11 +249,14 @@ if run_btn:
 
         future_cost = forecast_cost(df)
 
-        st.metric("Predicted Next Cost", round(future_cost, 2))
+        st.metric(
+            "Predicted Next Cost",
+            round(future_cost, 2)
+        )
 
 
     # -------------------------------------------------
-    # ROOT CAUSES
+    # ROOT CAUSES TAB
     # -------------------------------------------------
     with tab5:
 
@@ -250,7 +274,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # EXPLAINABILITY
+    # EXPLAINABILITY TAB
     # -------------------------------------------------
     with tab6:
 
@@ -267,11 +291,11 @@ if run_btn:
 
         else:
 
-            st.write("No abnormal behaviour detected in the dataset.")
+            st.write("No abnormal behaviour detected.")
 
 
     # -------------------------------------------------
-    # SUMMARY
+    # SUMMARY TAB
     # -------------------------------------------------
     with tab7:
 
