@@ -175,25 +175,34 @@ if run_btn:
 # -------------------------------------------------
 # TREND TAB
 # -------------------------------------------------
-    with tab3:
+  with tab3:
 
-        trend = df.set_index("timestamp")["cost"].resample("H").mean()
+    st.subheader("Cloud Cost Trend with Anomalies")
 
-        fig,ax = plt.subplots(figsize=(12,5))
+    # hourly cost trend
+    trend = df.set_index("timestamp")["cost"].resample("H").mean()
 
-        ax.plot(trend.index,trend.values,label="Cost Trend")
+    # hourly anomaly points
+    anomaly_trend = anomaly_df.set_index("timestamp")["cost"].resample("H").mean()
 
-        ax.scatter(
-            anomaly_df["timestamp"],
-            anomaly_df["cost"],
-            color="red",
-            label="Anomaly"
-        )
+    fig, ax = plt.subplots(figsize=(12,5))
 
-        ax.legend()
-        ax.set_ylabel("Cost")
+    ax.plot(trend.index, trend.values, label="Cost Trend", linewidth=2)
 
-        st.pyplot(fig)
+    ax.scatter(
+        anomaly_trend.index,
+        anomaly_trend.values,
+        color="red",
+        s=50,
+        label="Anomaly"
+    )
+
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Cost")
+    ax.legend()
+    ax.grid(True)
+
+    st.pyplot(fig)
 
 
 # -------------------------------------------------
