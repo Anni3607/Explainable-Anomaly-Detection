@@ -29,7 +29,7 @@ from modules.forecasting import forecast_cost
 # -------------------------------------------------
 # PAGE CONFIG
 # -------------------------------------------------
-st.set_page_config(page_title="Cloud Cost Anomaly Detection", layout="wide")
+st.set_page_config(page_title="Explainable Cloud Cost Anomaly Detection", layout="wide")
 
 st.title("☁️ Explainable Cloud Cost Anomaly Detection")
 st.caption("Detecting unusual cloud cost behaviour with human-readable explanations")
@@ -41,8 +41,11 @@ st.caption("Detecting unusual cloud cost behaviour with human-readable explanati
 st.sidebar.header("📂 Input Configuration")
 
 uploaded_file = st.sidebar.file_uploader("Upload Event Log CSV", type=["csv"])
+
 use_sample = st.sidebar.checkbox("Use sample dataset", value=True)
-z_thresh = st.sidebar.slider("Z-score Threshold",2.0,5.0,3.0)
+
+z_thresh = st.sidebar.slider("Z-score Threshold", 2.0, 5.0, 3.0)
+
 run_btn = st.sidebar.button("🚀 Run Analysis")
 
 
@@ -51,7 +54,7 @@ run_btn = st.sidebar.button("🚀 Run Analysis")
 # -------------------------------------------------
 @st.cache_data
 def load_sample():
-    path = os.path.join("data","event_log.csv")
+    path = os.path.join("data", "event_log.csv")
     return pd.read_csv(path)
 
 if uploaded_file:
@@ -70,11 +73,11 @@ df = df.sort_values("timestamp").reset_index(drop=True)
 # -------------------------------------------------
 np.random.seed(42)
 
-df["cost"] = 2.5 + np.random.normal(0,0.15,len(df))
+df["cost"] = 2.5 + np.random.normal(0, 0.15, len(df))
 
-df.loc[df["event_type"].isin(["CPU_SPIKE","MEMORY_SURGE"]),"cost"] += 0.8
-df.loc[df["event_type"]=="RESOURCE_SCALE","cost"] += 1.2
-df.loc[df["event_type"]=="COST_ANOMALY","cost"] += 2.0
+df.loc[df["event_type"].isin(["CPU_SPIKE", "MEMORY_SURGE"]), "cost"] += 0.8
+df.loc[df["event_type"] == "RESOURCE_SCALE", "cost"] += 1.2
+df.loc[df["event_type"] == "COST_ANOMALY", "cost"] += 2.0
 
 
 # -------------------------------------------------
@@ -114,7 +117,7 @@ if run_btn:
 
         return "Routine cloud operation."
 
-    df["Explanation"] = df.apply(explain,axis=1)
+    df["Explanation"] = df.apply(explain, axis=1)
 
     anomaly_df = df[df["is_anomaly"]]
 
@@ -122,7 +125,7 @@ if run_btn:
     # -------------------------------------------------
     # TABS
     # -------------------------------------------------
-    tab1,tab2,tab3,tab4,tab5,tab6,tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📊 Data",
         "🚨 Anomalies",
         "📈 Cost Trend",
@@ -139,7 +142,7 @@ if run_btn:
     with tab1:
 
         st.subheader("Event Log Preview")
-        st.dataframe(df.head(50),use_container_width=True)
+        st.dataframe(df.head(50), use_container_width=True)
 
 
     # -------------------------------------------------
@@ -167,33 +170,51 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # TREND TAB
+    # COST TREND TAB
     # -------------------------------------------------
     with tab3:
 
-        st.subheader("Cloud Cost Trend with Anomalies")
+        st.subheader("Cloud Cost Trend with Detected Anomalies")
 
-        trend = df.set_index("timestamp")["cost"].resample("H").mean()
+        # Hourly cost trend
+        hourly_cost = df.set_index("timestamp")["cost"].resample("H").mean()
 
-        anomaly_trend = anomaly_df.set_index("timestamp")["cost"].resample("H").mean()
+        # Smooth the trend
+        smoothed_cost = hourly_cost.rolling(6, min_periods=1).mean()
 
-        # smoother trend
-        trend = trend.rolling(6).mean()
+        # Hourly anomaly cost
+        anomaly_hours = anomaly_df.set_index("timestamp")["cost"].resample("H").mean()
 
         fig, ax = plt.subplots(figsize=(12,5))
 
-        ax.plot(trend.index, trend.values, label="Cost Trend", linewidth=2)
+        ax.plot(
+            smoothed_cost.index,
+            smoothed_cost.values,
+            linewidth=2,
+            label="Cost Trend"
+        )
 
         ax.scatter(
-            anomaly_trend.index,
-            anomaly_trend.values,
+            anomaly_hours.index,
+            anomaly_hours.values,
             color="red",
-            s=60,
+            s=70,
             label="Anomaly"
+        )
+
+        # Threshold line
+        threshold = mean_cost + z_thresh * std_cost
+
+        ax.axhline(
+            threshold,
+            linestyle="--",
+            color="orange",
+            label="Anomaly Threshold"
         )
 
         ax.set_xlabel("Time")
         ax.set_ylabel("Cost")
+
         ax.legend()
         ax.grid(True)
 
@@ -205,8 +226,11 @@ if run_btn:
     # -------------------------------------------------
     with tab4:
 
+        st.subheader("Cost Forecast")
+
         future_cost = forecast_cost(df)
-        st.metric("Predicted Next Cost",round(future_cost,2))
+
+        st.metric("Predicted Next Cost", round(future_cost, 2))
 
 
     # -------------------------------------------------
@@ -234,16 +258,13 @@ if run_btn:
         st.write(f"""
         **Most anomalies were caused by:** {top_event}
 
-        These events increased cloud costs by triggering resource scaling.
+        The system monitors cloud usage events and estimates expected cost behaviour.
 
-        The system detects anomalies by measuring how far the cost deviates 
-        from the expected average using statistical Z-score detection.
+        When cost deviates significantly from the expected baseline, an anomaly is detected.
 
-        When the deviation exceeds the configured threshold, the event is 
-        flagged as a potential cost anomaly.
+        This detection uses a statistical **Z-score method** that identifies unusually high cost events.
 
-        Recommendations are generated to help cloud engineers reduce 
-        unnecessary resource usage.
+        The dashboard then provides recommendations to help engineers optimize resource usage.
         """)
 
 
@@ -256,24 +277,20 @@ if run_btn:
         anomalies = len(anomaly_df)
         anomaly_rate = anomalies / total_events
 
-        col1,col2,col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
-        col1.metric("Total Events",total_events)
-        col2.metric("Detected Anomalies",anomalies)
-        col3.metric("Anomaly Rate",f"{anomaly_rate:.2%}")
+        col1.metric("Total Events", total_events)
+        col2.metric("Detected Anomalies", anomalies)
+        col3.metric("Anomaly Rate", f"{anomaly_rate:.2%}")
 
         st.write("""
         ### Simple Explanation
 
-        The system continuously monitors cloud activity logs and calculates 
-        expected cost behaviour.
+        This system monitors cloud infrastructure activity and calculates expected cost patterns.
 
-        If a cost value deviates significantly from the normal pattern, the 
-        event is classified as an anomaly.
+        When costs deviate significantly from normal behaviour, the system flags them as anomalies.
 
-        In this dataset, most anomalies were caused by traffic spikes and 
-        resource scaling events that temporarily increased cloud spending.
+        In this dataset, most anomalies are caused by traffic spikes and resource scaling events that temporarily increase cloud spending.
 
-        Early detection allows engineers to investigate and prevent 
-        unnecessary cloud costs.
+        Early detection helps cloud engineers investigate issues and reduce unnecessary costs.
         """)
