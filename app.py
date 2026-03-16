@@ -85,6 +85,9 @@ else:
     st.stop()
 
 
+# -------------------------------------------------
+# DATA PREPARATION
+# -------------------------------------------------
 df["timestamp"] = pd.to_datetime(df["timestamp"])
 df = df.sort_values("timestamp").reset_index(drop=True)
 
@@ -116,7 +119,7 @@ if run_btn:
     st.subheader("🔍 Detected Anomalies")
 
     # -----------------------------
-    # Z SCORE CALCULATION
+    # Z SCORE
     # -----------------------------
     mean_cost = df["cost"].mean()
     std_cost = df["cost"].std()
@@ -126,7 +129,7 @@ if run_btn:
 
 
     # -----------------------------
-    # SEVERITY SCORING
+    # SEVERITY
     # -----------------------------
     df["severity"] = df["z_score"].apply(severity)
 
@@ -138,7 +141,7 @@ if run_btn:
 
 
     # -----------------------------
-    # EXPLANATION ENGINE
+    # EXPLANATION
     # -----------------------------
     def explain(row):
 
@@ -210,7 +213,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # FORECASTING
+    # FORECAST
     # -------------------------------------------------
     st.subheader("📉 Cost Forecast")
 
