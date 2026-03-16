@@ -1,5 +1,7 @@
-streamlit==1.54.0
-pandas==2.3.3
-numpy==2.4.2
-matplotlib==3.10.8
+pandas
+numpy
+matplotlib
+networkx
+streamlit
+scikit-learn
 pyvis
