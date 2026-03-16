@@ -1,4 +1,6 @@
 Explainable Cloud Cost Anomaly Detection
+
+
 Overview
 
 Cloud infrastructure generates large volumes of operational events such as CPU spikes, memory surges, traffic bursts, and scaling actions. These events often lead to unexpected increases in cloud spending. Detecting unusual cost behaviour early helps engineers investigate the root cause and prevent unnecessary expenses.
