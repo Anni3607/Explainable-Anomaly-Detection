@@ -57,10 +57,13 @@ def load_sample():
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
+
 elif use_sample:
     df = load_sample()
+
 else:
     st.stop()
+
 
 df["timestamp"] = pd.to_datetime(df["timestamp"])
 df = df.sort_values("timestamp").reset_index(drop=True)
@@ -92,26 +95,19 @@ if run_btn:
     df["severity"] = df["z_score"].apply(severity)
     df["Recommendation"] = df["event_type"].apply(recommend)
 
-
     # -------------------------------------------------
     # EXPLANATION ENGINE
     # -------------------------------------------------
-    def explain(event):
+    explanation_map = {
+        "CPU_SPIKE": "High CPU usage increased compute cost.",
+        "MEMORY_SURGE": "Memory demand increased instance usage.",
+        "TRAFFIC_SPIKE": "Traffic spike triggered backend scaling.",
+        "RESOURCE_SCALE": "Autoscaling increased infrastructure cost.",
+        "COST_ANOMALY": "Billing deviated significantly from baseline."
+    }
 
-        explanations = {
-            "CPU_SPIKE": "High CPU usage increased compute cost.",
-            "MEMORY_SURGE": "Memory demand increased instance usage.",
-            "TRAFFIC_SPIKE": "Traffic spike triggered backend scaling.",
-            "RESOURCE_SCALE": "Autoscaling increased infrastructure cost.",
-            "COST_ANOMALY": "Billing deviated significantly from baseline."
-        }
+    df["Explanation"] = df["event_type"].map(explanation_map).fillna("Routine cloud operation.")
 
-        return explanations.get(event, "Routine cloud operation.")
-
-    df["Explanation"] = df["event_type"].apply(explain)
-
-
-    # CREATE anomaly_df AFTER Explanation column exists
     anomaly_df = df[df["is_anomaly"]]
 
 
@@ -130,7 +126,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # DATA TAB
+    # DATA
     # -------------------------------------------------
     with tab1:
 
@@ -140,7 +136,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # ANOMALIES TAB
+    # ANOMALIES
     # -------------------------------------------------
     with tab2:
 
@@ -170,13 +166,17 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # COST TREND TAB
+    # COST TREND
     # -------------------------------------------------
     with tab3:
 
         st.subheader("Daily Cloud Cost Trend")
 
+        # daily cost
         daily_cost = df.set_index("timestamp")["cost"].resample("D").mean()
+
+        # daily anomaly
+        anomaly_daily = anomaly_df.set_index("timestamp")["cost"].resample("D").mean()
 
         fig, ax = plt.subplots(figsize=(12,5))
 
@@ -187,15 +187,13 @@ if run_btn:
             label="Average Cost"
         )
 
-        if len(anomaly_df) > 0:
-
-            ax.scatter(
-                anomaly_df["timestamp"],
-                anomaly_df["cost"],
-                color="red",
-                s=40,
-                label="Anomaly"
-            )
+        ax.scatter(
+            anomaly_daily.index,
+            anomaly_daily.values,
+            color="red",
+            s=80,
+            label="Anomaly"
+        )
 
         threshold = mean_cost + z_thresh * std_cost
 
@@ -216,7 +214,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # FORECAST TAB
+    # FORECAST
     # -------------------------------------------------
     with tab4:
 
@@ -228,7 +226,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # ROOT CAUSE TAB
+    # ROOT CAUSES
     # -------------------------------------------------
     with tab5:
 
@@ -236,7 +234,9 @@ if run_btn:
 
         if len(anomaly_df) > 0:
 
-            st.bar_chart(anomaly_df["event_type"].value_counts())
+            cause_counts = anomaly_df["event_type"].value_counts()
+
+            st.bar_chart(cause_counts)
 
         else:
 
@@ -244,7 +244,7 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # EXPLAINABILITY TAB
+    # EXPLAINABILITY
     # -------------------------------------------------
     with tab6:
 
@@ -253,21 +253,19 @@ if run_btn:
         if len(anomaly_df) > 0:
 
             top_event = anomaly_df["event_type"].value_counts().idxmax()
-
             avg_cost = anomaly_df["cost"].mean()
 
-            st.write(f"Most anomalies were caused by **{top_event}** events.")
-            st.write(f"Average anomalous cost: **{avg_cost:.2f}**")
-
+            st.write(f"Most anomalies were triggered by **{top_event}** events.")
+            st.write(f"Average anomalous cost observed: **{avg_cost:.2f}**")
             st.write("Detection uses statistical Z-score deviation from normal cost behaviour.")
 
         else:
 
-            st.write("No abnormal behaviour detected.")
+            st.write("No abnormal behaviour detected in the dataset.")
 
 
     # -------------------------------------------------
-    # SUMMARY TAB
+    # SUMMARY
     # -------------------------------------------------
     with tab7:
 
