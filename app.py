@@ -168,25 +168,31 @@ if run_btn:
     # -------------------------------------------------
     # COST TREND
     # -------------------------------------------------
-    with tab3:
+   with tab3:
 
-        st.subheader("Daily Cloud Cost Trend")
+    st.subheader("Daily Cloud Cost Trend")
 
-        # daily cost
-        daily_cost = df.set_index("timestamp")["cost"].resample("D").mean()
+    # daily average cost
+    daily_cost = df.set_index("timestamp")["cost"].resample("D").mean()
 
-        # daily anomaly
+    # daily anomaly average
+    if len(anomaly_df) > 0:
         anomaly_daily = anomaly_df.set_index("timestamp")["cost"].resample("D").mean()
+    else:
+        anomaly_daily = pd.Series(dtype=float)
 
-        fig, ax = plt.subplots(figsize=(12,5))
+    fig, ax = plt.subplots(figsize=(12,5))
 
-        ax.plot(
-            daily_cost.index,
-            daily_cost.values,
-            linewidth=2,
-            label="Average Cost"
-        )
+    # cost trend
+    ax.plot(
+        daily_cost.index,
+        daily_cost.values,
+        linewidth=2,
+        label="Average Daily Cost"
+    )
 
+    # anomaly points (one per day)
+    if len(anomaly_daily) > 0:
         ax.scatter(
             anomaly_daily.index,
             anomaly_daily.values,
@@ -195,22 +201,22 @@ if run_btn:
             label="Anomaly"
         )
 
-        threshold = mean_cost + z_thresh * std_cost
+    threshold = mean_cost + z_thresh * std_cost
 
-        ax.axhline(
-            threshold,
-            linestyle="--",
-            color="orange",
-            label="Anomaly Threshold"
-        )
+    ax.axhline(
+        threshold,
+        linestyle="--",
+        color="orange",
+        label="Anomaly Threshold"
+    )
 
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Cost")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Cost")
 
-        ax.legend()
-        ax.grid(True)
+    ax.legend()
+    ax.grid(True)
 
-        st.pyplot(fig)
+    st.pyplot(fig)
 
 
     # -------------------------------------------------
