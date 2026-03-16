@@ -93,13 +93,6 @@ df = df.sort_values("timestamp").reset_index(drop=True)
 
 
 # -------------------------------------------------
-# DISPLAY RAW DATA
-# -------------------------------------------------
-st.subheader("📋 Event Log Preview")
-st.dataframe(df.head(50), width="stretch")
-
-
-# -------------------------------------------------
 # FEATURE ENGINEERING
 # -------------------------------------------------
 np.random.seed(42)
@@ -116,48 +109,39 @@ df.loc[df["event_type"] == "COST_ANOMALY", "cost"] += 2.0
 # -------------------------------------------------
 if run_btn:
 
-    st.subheader("🔍 Detected Anomalies")
-
-    # -----------------------------
-    # Z SCORE
-    # -----------------------------
+    # Z-SCORE
     mean_cost = df["cost"].mean()
     std_cost = df["cost"].std()
 
     df["z_score"] = (df["cost"] - mean_cost) / std_cost
     df["is_anomaly"] = df["z_score"].abs() >= z_thresh
 
-
-    # -----------------------------
-    # SEVERITY
-    # -----------------------------
     df["severity"] = df["z_score"].apply(severity)
 
-
-    # -----------------------------
-    # RECOMMENDATIONS
-    # -----------------------------
     df["Recommendation"] = df["event_type"].apply(recommend)
 
 
-    # -----------------------------
-    # EXPLANATION
-    # -----------------------------
+    # -------------------------------------------------
+    # EXPLANATION ENGINE
+    # -------------------------------------------------
     def explain(row):
 
         if row["event_type"] == "CPU_SPIKE":
-            return "High EC2 cost due to unusual CPU utilization spike"
+            return "CPU utilization exceeded safe threshold, increasing compute cost."
 
         if row["event_type"] == "MEMORY_SURGE":
-            return "High EC2 cost due to abnormal memory consumption"
+            return "Abnormal memory consumption detected on the instance."
 
         if row["event_type"] == "RESOURCE_SCALE":
-            return "Cost increase caused by automatic resource scaling"
+            return "Autoscaling triggered additional compute resources."
+
+        if row["event_type"] == "TRAFFIC_SPIKE":
+            return "Unexpected traffic surge caused backend scaling."
 
         if row["event_type"] == "COST_ANOMALY":
-            return "Detected billing anomaly exceeding expected baseline"
+            return "Billing deviated significantly from expected baseline."
 
-        return "Normal operational behavior"
+        return "Routine system activity."
 
 
     df["Explanation"] = df.apply(explain, axis=1)
@@ -166,80 +150,114 @@ if run_btn:
 
 
     # -------------------------------------------------
-    # ANOMALY TABLE
+    # DASHBOARD TABS
     # -------------------------------------------------
-    st.dataframe(
-        anomaly_df[
-            [
-                "timestamp",
-                "event_type",
-                "resource_id",
-                "cost",
-                "z_score",
-                "severity",
-                "Explanation",
-                "Recommendation"
-            ]
-        ],
-        width="stretch"
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["📊 Data", "🚨 Anomalies", "📈 Trend", "🔮 Forecast", "📊 Summary"]
     )
 
 
     # -------------------------------------------------
-    # COST TREND GRAPH
+    # TAB 1 : DATA PREVIEW
     # -------------------------------------------------
-    st.subheader("📈 Cost Trend with Anomalies")
+    with tab1:
 
-    fig, ax = plt.subplots(figsize=(12, 5))
-
-    ax.plot(df["timestamp"], df["cost"], label="Cost", linewidth=1)
-
-    ax.scatter(
-        anomaly_df["timestamp"],
-        anomaly_df["cost"],
-        color="red",
-        label="Anomaly",
-        s=40
-    )
-
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Cost")
-    ax.set_title("Cloud Cost Trend with Detected Anomalies")
-
-    ax.legend()
-    ax.grid(True)
-
-    st.pyplot(fig)
+        st.subheader("Event Log Preview")
+        st.dataframe(df.head(50), width="stretch")
 
 
     # -------------------------------------------------
-    # FORECAST
+    # TAB 2 : ANOMALY TABLE
     # -------------------------------------------------
-    st.subheader("📉 Cost Forecast")
+    with tab2:
 
-    future_cost = forecast_cost(df)
+        st.subheader("Detected Anomalies")
 
-    st.metric(
-        "Predicted Next Cost",
-        round(future_cost, 2)
-    )
-
-
-    # -------------------------------------------------
-    # SUMMARY METRICS
-    # -------------------------------------------------
-    st.subheader("📊 Summary")
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.metric("Total Events", len(df))
-
-    with c2:
-        st.metric("Detected Anomalies", len(anomaly_df))
-
-    with c3:
-        st.metric(
-            "Anomaly Rate",
-            f"{len(anomaly_df)/len(df):.2%}"
+        st.dataframe(
+            anomaly_df[
+                [
+                    "timestamp",
+                    "event_type",
+                    "resource_id",
+                    "cost",
+                    "z_score",
+                    "severity",
+                    "Explanation",
+                    "Recommendation"
+                ]
+            ],
+            width="stretch"
         )
+
+        st.subheader("Anomaly Type Distribution")
+
+        type_counts = anomaly_df["event_type"].value_counts()
+
+        st.bar_chart(type_counts)
+
+
+    # -------------------------------------------------
+    # TAB 3 : COST TREND
+    # -------------------------------------------------
+    with tab3:
+
+        st.subheader("Cloud Cost Trend with Anomalies")
+
+        trend = df.set_index("timestamp")["cost"].resample("H").mean()
+
+        fig, ax = plt.subplots(figsize=(12,5))
+
+        ax.plot(trend.index, trend.values, label="Cost Trend")
+
+        ax.scatter(
+            anomaly_df["timestamp"],
+            anomaly_df["cost"],
+            color="red",
+            label="Anomaly",
+            s=40
+        )
+
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Cost")
+
+        ax.legend()
+        ax.grid(True)
+
+        st.pyplot(fig)
+
+
+    # -------------------------------------------------
+    # TAB 4 : FORECAST
+    # -------------------------------------------------
+    with tab4:
+
+        st.subheader("Cost Forecast")
+
+        future_cost = forecast_cost(df)
+
+        st.metric(
+            "Predicted Next Cost",
+            round(future_cost, 2)
+        )
+
+
+    # -------------------------------------------------
+    # TAB 5 : SUMMARY
+    # -------------------------------------------------
+    with tab5:
+
+        st.subheader("Summary Metrics")
+
+        c1, c2, c3 = st.columns(3)
+
+        with c1:
+            st.metric("Total Events", len(df))
+
+        with c2:
+            st.metric("Detected Anomalies", len(anomaly_df))
+
+        with c3:
+            st.metric(
+                "Anomaly Rate",
+                f"{len(anomaly_df)/len(df):.2%}"
+            )
