@@ -19,6 +19,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 from modules.severity_scoring import severity
 from modules.recommendation_engine import recommend
@@ -64,7 +65,13 @@ run_btn = st.sidebar.button("🚀 Run Analysis")
 # -------------------------------------------------
 @st.cache_data
 def load_sample():
-    return pd.read_csv("event_log.csv")
+    path = os.path.join("data", "event_log.csv")
+
+    if not os.path.exists(path):
+        st.error("Sample dataset not found: data/event_log.csv")
+        st.stop()
+
+    return pd.read_csv(path)
 
 
 if uploaded_file:
@@ -182,12 +189,7 @@ if run_btn:
 
     fig, ax = plt.subplots(figsize=(12, 5))
 
-    ax.plot(
-        df["timestamp"],
-        df["cost"],
-        label="Cost",
-        linewidth=1
-    )
+    ax.plot(df["timestamp"], df["cost"], label="Cost", linewidth=1)
 
     ax.scatter(
         anomaly_df["timestamp"],
